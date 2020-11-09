@@ -13,7 +13,7 @@
 #include "base64.h"
 
 // external files
-#include "circularBuffer.hpp"
+#include "circularMultiBuffer.hpp"
 
 // debugging messages
 #define DEBUG false

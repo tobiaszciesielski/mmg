@@ -66,7 +66,7 @@ void setup() {
   mqttClient.setServer(MQTT_SERVER_IP, MQTT_SERVER_PORT);
 }
 
-
+bool tested = false;
 void loop() {
   
   // Start transmission transmission of HEX-type data (0x21 is !)

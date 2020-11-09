@@ -1,7 +1,7 @@
 #include <vector>
 
 template <typename T>
-class CircularBuffer {
+class CircularMultiBuffer {
 private:
   std::vector<std::vector<T>> buffer;
   size_t head;
@@ -52,14 +52,14 @@ private:
 }
 
 public:
-  CircularBuffer(size_t bufferRows, size_t bufferCols): 
+  CircularMultiBuffer(size_t bufferRows, size_t bufferCols): 
     buffer(std::vector<std::vector<T>>(bufferRows)),
     head(0), 
     tail(0), 
     rows(bufferRows),
     cols(bufferCols),
-    isFull(false),
-    expectedRow(0) {
+    expectedRow(0),
+    isFull(false) {
       for (size_t i = 0; i < bufferRows; i++) buffer[i] = std::vector<T>(bufferCols);      
     }
 
@@ -103,6 +103,7 @@ public:
     return isFull;
   }
 
+  // get total size of buffer
   size_t getColumsCount() {
     return cols;
   }
@@ -116,9 +117,9 @@ public:
     size_t capacity = cols;
     if(!isFull) {
       if(head >= tail)
-        capacity = head-tail;
+        capacity = head - tail;
       else
-        capacity = cols+head-tail;
+        capacity = cols + head - tail;
     }
     return capacity;
   }
