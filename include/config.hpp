@@ -1,4 +1,4 @@
-// buildin libraries 
+// build-in libraries 
 #include <Arduino.h>
 #include <string>
 #include <sstream>  

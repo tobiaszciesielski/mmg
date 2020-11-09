@@ -90,18 +90,3 @@ void loop() {
 
   mqttReconnect();
 }
-
-
-
-
-// NOTES 
-
-// 72 ints
-// 8 mcu * 3 canals * 3 values * 2 bytes = 144 bytes
-// short data[72] {0};
-
-
-// text sample : #@8;676;415;-4092;59;-41;14;631;207;681;#
-
-
-// 40 02 48 05 57 02 DF 0E 0C 00 0A 00 18 00 24 FF 66 00 B7 F2 23
