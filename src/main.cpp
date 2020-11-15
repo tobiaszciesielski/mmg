@@ -33,7 +33,6 @@ void connectToWifi() {
   }
 }
   
-
 void mqttReconnect() {
   while (!mqttClient.connected()) {
     if (DEBUG) Serial.print("Attempting MQTT connection...");
@@ -54,11 +53,9 @@ void mqttReconnect() {
   }
 }
 
-
-void sendData(char* message, size_t messageLenghta) {
+void sendData(unsigned char* message, size_t messageLenghta) {
   mqttClient.publish("test", message, messageLenghta);
 }
-
 
 void setup() {
   Serial.begin(BAUD_RATE);
@@ -66,9 +63,18 @@ void setup() {
   mqttClient.setServer(MQTT_SERVER_IP, MQTT_SERVER_PORT);
 }
 
-bool tested = false;
 void loop() {
   
+  // declare neccesary variables 
+  byte startByte = '@';
+  byte endByte = '#';
+  const int packageLength = 21;
+  byte package[packageLength];
+
+  // test buffer
+  unsigned char buff[23];
+  int j = 0;
+
   // Start transmission transmission of HEX-type data (0x21 is !)
   Serial.write(0x21);
 
@@ -76,15 +82,24 @@ void loop() {
     mqttClient.loop();
 
     if (Serial.available()) {
-      // read byte
-      unsigned char byte = Serial.read();
+      // read bytes
+      int n = Serial.readBytes(package, packageLength);
+      
+      // check package correctness
+      if(package[0] == startByte && package[packageLength-1] == endByte) {
 
-      // convert byte to string
-      char sample[3];
-      sprintf(sample, "%x", byte);     
+        // send sample
+        for (size_t i = 0; i < packageLength; i++) {
+          buff[i] = (unsigned char)('a' + j);
+        }
 
-      // send sample
-      sendData(sample, 3);                                    
+        // number of sensor
+        buff[21] = package[1] + '0';
+        buff[22] = '\0';
+        
+        sendData(buff, 23);   
+        j++;                              
+      }
     }
   }
 
