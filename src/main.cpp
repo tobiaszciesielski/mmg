@@ -59,6 +59,7 @@ void sendData(const char* message, size_t messageLenghta) {
 
 void setup() {
   Serial.begin(BAUD_RATE);
+  Serial.setRxBufferSize(SERIAL_BUFFER_SIZE);
   connectToWifi();
   mqttClient.setServer(MQTT_SERVER_IP, MQTT_SERVER_PORT);
 }
@@ -68,7 +69,8 @@ void loop() {
   // declare neccesary variables 
   // const int packageLength = 21;
   // unsigned long lastTimeSend = 0;
-  byte buffer[CONFIG_MB_SERIAL_BUF_SIZE]; // 256
+
+  byte buffer[SERIAL_BUFFER_SIZE];
 
   // Start transmission transmission of HEX-type data (0x21 is !)
   Serial.write(0x21);
@@ -112,7 +114,6 @@ void loop() {
     //   }
     // }
     
-
     if (Serial.available() > 0) {
 
       int n = Serial.readBytes(buffer, Serial.available());
@@ -124,11 +125,9 @@ void loop() {
         ss << sample;
       }
       ss << n << '/'<< Serial.available() << "\n";
-      
+
       sendData(ss.str().c_str(), ss.str().size());
     } 
-  }
-
-  
+  } 
   mqttReconnect();
 }

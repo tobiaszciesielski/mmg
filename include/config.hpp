@@ -31,3 +31,7 @@
 #define SENDING_DATA_FREQ 1000
 #define BAUD_RATE 2000000
 unsigned long messageSendingTime = (1.0 / SENDING_DATA_FREQ) * 1000;
+
+// SERIAL
+#define SERIAL_BUFFER_SIZE 256
+
