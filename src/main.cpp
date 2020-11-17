@@ -53,7 +53,7 @@ void mqttReconnect() {
   }
 }
 
-void sendData(unsigned char* message, size_t messageLenghta) {
+void sendData(const char* message, size_t messageLenghta) {
   mqttClient.publish("test", message, messageLenghta);
 }
 
@@ -66,14 +66,9 @@ void setup() {
 void loop() {
   
   // declare neccesary variables 
-  byte startByte = '@';
-  byte endByte = '#';
-  const int packageLength = 21;
-  byte package[packageLength];
-
-  // test buffer
-  unsigned char buff[23];
-  int j = 0;
+  // const int packageLength = 21;
+  // unsigned long lastTimeSend = 0;
+  byte buffer[CONFIG_MB_SERIAL_BUF_SIZE]; // 256
 
   // Start transmission transmission of HEX-type data (0x21 is !)
   Serial.write(0x21);
@@ -81,27 +76,59 @@ void loop() {
   while (mqttClient.connected()) {
     mqttClient.loop();
 
-    if (Serial.available()) {
-      // read bytes
-      int n = Serial.readBytes(package, packageLength);
+    // int bytesCount = Serial.available();
+    // if (bytesCount > 0) {
       
-      // check package correctness
-      if(package[0] == startByte && package[packageLength-1] == endByte) {
+    //   // read bytes
+    //   int n = Serial.readBytes(buffer, bytesCount);
 
-        // send sample
-        for (size_t i = 0; i < packageLength; i++) {
-          buff[i] = (unsigned char)('a' + j);
-        }
-
-        // number of sensor
-        buff[21] = package[1] + '0';
-        buff[22] = '\0';
+    //   for (size_t i = 0; i < n;) {
         
-        sendData(buff, 23);   
-        j++;                              
+    //     // prevent from range error 
+    //     if (i + packageLength >= n) break;
+
+    //     // check if package is correct
+    //     if (buffer[i] == '@' 
+    //       && (buffer[i+1] > 0 && buffer[i+1] <= 8) 
+    //       &&  buffer[i+20] == '#') {
+
+    //       std::stringstream ss;
+    //       for (size_t j = 0; j < packageLength; j++) {
+    //         char sample[4];
+    //         sprintf(sample, "%02X:", buffer[i+j]);
+    //         ss << sample;
+    //       }
+
+    //       char t[10];
+    //       long timeDifference = millis() - lastTimeSend;
+    //       sprintf(t, "%u", (unsigned int)timeDifference);
+    //       ss << t;
+    //       sendData(ss.str().c_str(), ss.str().size());
+          
+    //       i += packageLength;
+    //       lastTimeSend = millis();
+    //     }
+    //     else i++;
+    //   }
+    // }
+    
+
+    if (Serial.available() > 0) {
+
+      int n = Serial.readBytes(buffer, Serial.available());
+
+      std::stringstream ss;
+      for (size_t i = 0; i < n; i++) {
+        char sample[4];
+        sprintf(sample, "%02X:", buffer[i]);
+        ss << sample;
       }
-    }
+      ss << n << '/'<< Serial.available() << "\n";
+      
+      sendData(ss.str().c_str(), ss.str().size());
+    } 
   }
 
+  
   mqttReconnect();
 }
