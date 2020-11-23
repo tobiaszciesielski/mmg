@@ -70,7 +70,7 @@ void loop() {
   // const int packageLength = 21;
   // unsigned long lastTimeSend = 0;
 
-  byte buffer[SERIAL_BUFFER_SIZE];
+  char buffer[SERIAL_BUFFER_SIZE];
 
   // Start transmission transmission of HEX-type data (0x21 is !)
   Serial.write(0x21);
@@ -114,20 +114,41 @@ void loop() {
     //   }
     // }
     
-    if (Serial.available() > 0) {
 
-      int n = Serial.readBytes(buffer, Serial.available());
+    //// READING BUFFER USING Serial.readBytes()
 
+    // if (Serial.available() > 0) {
+
+    //   int n = Serial.readBytes(buffer, Serial.available());
+
+    //   std::stringstream ss;
+    //   for (size_t i = 0; i < n; i++) {
+    //     char sample[4];
+    //     sprintf(sample, "%02X:", buffer[i]);
+    //     ss << sample;
+    //   }
+    //   ss << n << '/'<< Serial.available() << "\n";
+
+    //   sendData(ss.str().c_str(), ss.str().size());
+    // } 
+
+
+    //// READING BUFFER USING Serial.read()
+
+
+    int aviableBytes = Serial.available();
+    if (aviableBytes > 0) {
       std::stringstream ss;
-      for (size_t i = 0; i < n; i++) {
+      for (size_t i = 0; i < aviableBytes; i++) {
         char sample[4];
-        sprintf(sample, "%02X:", buffer[i]);
+        sprintf(sample, "%02X:", Serial.read());
         ss << sample;
       }
-      ss << n << '/'<< Serial.available() << "\n";
+
+      ss << aviableBytes << '/'<< Serial.available() << "\n";
 
       sendData(ss.str().c_str(), ss.str().size());
-    } 
+    }
   } 
   mqttReconnect();
 }

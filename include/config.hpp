@@ -5,6 +5,9 @@
 #include <chrono>
 #include <random>
 #include <ctime>
+#include <string.h>
+#include <stdlib.h>
+#include <stdio.h>
 
 // additional libraries
 #include "PubSubClient.h"
@@ -16,15 +19,16 @@
 #include "circularMultiBuffer.hpp"
 
 // debugging messages
-#define DEBUG false
+#define DEBUG true
 
 // network   
-#define WIFI_NETWORK "Ciesielski Hot Spot"
-#define WIFI_PASSWORD "Aneta1999"
+#define WIFI_NETWORK "HUAWEI-AE45B7"
+#define WIFI_PASSWORD "J90D90L0MH3"
+// 
 #define WIFI_TIMEOUT_MS 15000
 
 // mqtt 
-#define MQTT_SERVER_IP "192.168.8.120"
+#define MQTT_SERVER_IP "192.168.8.105"
 #define MQTT_SERVER_PORT 1883
 
 // transmission 
@@ -33,5 +37,4 @@
 unsigned long messageSendingTime = (1.0 / SENDING_DATA_FREQ) * 1000;
 
 // SERIAL
-#define SERIAL_BUFFER_SIZE 256
-
+#define SERIAL_BUFFER_SIZE 1024
