@@ -19,7 +19,7 @@
 #include "circularMultiBuffer.hpp"
 
 // debugging messages
-#define DEBUG true
+#define DEBUG false
 
 // network   
 #define WIFI_NETWORK "HUAWEI-AE45B7"
@@ -34,7 +34,7 @@
 // transmission 
 #define SENDING_DATA_FREQ 1000
 #define BAUD_RATE 2000000
-unsigned long messageSendingTime = (1.0 / SENDING_DATA_FREQ) * 1000;
+unsigned long dataTimeSendMicrosec = (1.0 / SENDING_DATA_FREQ) * 1000000;
 
 // SERIAL
-#define SERIAL_BUFFER_SIZE 1024
+#define SERIAL_BUFFER_SIZE 10500
