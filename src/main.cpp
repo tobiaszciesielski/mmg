@@ -70,11 +70,16 @@ void setup() {
 void loop() {
   
   // neccesary variables declaration
-  unsigned long lastTimeSend = 0;
-  uint aviableBytes = 0;
+  // char bigBuffer[SERIAL_BUFFER_SIZE];
+  uint bufferPosition = 0;
+
   const uint16_t buffSize = mqttClient.getBufferSize() - 10;
   char buffer[buffSize];
+
+  unsigned long lastTimeSend = 0;
   unsigned long diff;
+  
+  uint aviableBytes = 0;
 
   // Start transmission transmission of HEX-type data (0x21 is !)
   Serial.write(0x21);
@@ -82,29 +87,34 @@ void loop() {
   while (mqttClient.connected()) {
     mqttClient.loop();
 
-    // READING BUFFER USING Serial.read() with 1 milisec 
+    // Read data from serial
+    aviableBytes = Serial.available();
+    if (aviableBytes > 0) {
+      if(aviableBytes > buffSize) {
+        // Prevent buffer from overlow and serial blocking
+        sendData("Buffer overflow", 16);
+        for (size_t i = 0; i < aviableBytes; i++) {
+          Serial.read();
+        }
+      } else {
+        // Store data in buffer
+        int margin = bufferPosition+aviableBytes;
+        for (; bufferPosition < margin; bufferPosition++) {
+          buffer[bufferPosition] = Serial.read();
+        }
+      }
+    }
+
+    // Send data end clear buffer
     diff = micros() - lastTimeSend;
     if(diff >= dataTimeSendMicrosec) {
+      if (bufferPosition > 0) {
+        // int n = sprintf(message, "%u, %u", bufferPosition, diff);
+        // sendData(message, n);
 
-      aviableBytes = Serial.available();
-      if (aviableBytes > 0) {
-        
-        if(aviableBytes > buffSize) {
-          // Prevent buffer from overlow and serial blocking
-          for (size_t i = 0; i < aviableBytes; i++) {
-            Serial.read();
-          }
-          sendData("Buffer overflow", 16);
-
-        } else {
-          // read data from buffer
-          for (size_t i = 0; i < aviableBytes; i++) {
-            buffer[i] = Serial.read();
-          }
-          sendData(buffer, aviableBytes);
-        }
-
+        sendData(buffer, bufferPosition);
         lastTimeSend = micros();
+        bufferPosition = 0;
       }
     }
   } 

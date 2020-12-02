@@ -1,13 +1,11 @@
 // build-in libraries 
 #include <Arduino.h>
-#include <string>
-#include <sstream>  
-#include <chrono>
-#include <random>
-#include <ctime>
 #include <string.h>
+#include <iostream>
+#include <string>
 #include <stdlib.h>
-#include <stdio.h>
+#include <cstring>
+#include<sstream>
 
 // additional libraries
 #include "PubSubClient.h"
@@ -22,13 +20,12 @@
 #define DEBUG false
 
 // network   
-#define WIFI_NETWORK "HUAWEI-AE45B7"
-#define WIFI_PASSWORD "J90D90L0MH3"
-// 
+#define WIFI_NETWORK "Ciesielski Hot Spot"
+#define WIFI_PASSWORD "Aneta1999"
 #define WIFI_TIMEOUT_MS 15000
 
 // mqtt 
-#define MQTT_SERVER_IP "192.168.8.105"
+#define MQTT_SERVER_IP "192.168.8.120"
 #define MQTT_SERVER_PORT 1883
 
 // transmission 
@@ -38,3 +35,18 @@ unsigned long dataTimeSendMicrosec = (1.0 / SENDING_DATA_FREQ) * 1000000;
 
 // SERIAL
 #define SERIAL_BUFFER_SIZE 10500
+
+
+template <typename T>
+std::string to_string(T value)
+{
+    //create an output string stream
+    std::ostringstream os ;
+
+    //throw the value into the string stream
+    os << value ;
+
+    //convert the string stream into a string and return
+    return os.str() ;
+}
+
