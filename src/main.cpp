@@ -80,6 +80,7 @@ void loop() {
   unsigned long diff;
   
   uint aviableBytes = 0;
+  int margin =0;
 
   // Start transmission transmission of HEX-type data (0x21 is !)
   Serial.write(0x21);
@@ -90,7 +91,8 @@ void loop() {
     // Read data from serial
     aviableBytes = Serial.available();
     if (aviableBytes > 0) {
-      if(aviableBytes > buffSize) {
+      int margin = bufferPosition+aviableBytes;
+      if(margin > buffSize) {
         // Prevent buffer from overlow and serial blocking
         sendData("Buffer overflow", 16);
         for (size_t i = 0; i < aviableBytes; i++) {
@@ -98,7 +100,6 @@ void loop() {
         }
       } else {
         // Store data in buffer
-        int margin = bufferPosition+aviableBytes;
         for (; bufferPosition < margin; bufferPosition++) {
           buffer[bufferPosition] = Serial.read();
         }
