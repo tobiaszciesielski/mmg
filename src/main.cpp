@@ -91,7 +91,7 @@ void loop() {
     // Read data from serial
     aviableBytes = Serial.available();
     if (aviableBytes > 0) {
-      int margin = bufferPosition+aviableBytes;
+      margin = bufferPosition+aviableBytes;
       if(margin > buffSize) {
         // Prevent buffer from overlow and serial blocking
         sendData("Buffer overflow", 16);
