@@ -4,12 +4,13 @@
 WiFiClient espClient;
 PubSubClient mqttClient(espClient);
 
-void sendData(char* message, size_t messageLenght) {
-  if(messageLenght > mqttClient.getBufferSize()) {
-    message="Pocket too big!", messageLenght=16;
-  } 
-  mqttClient.publish("test", message, messageLenght);
-}
+void sendData(const uint8_t* message, size_t messageLenght) {
+    if (messageLenght > mqttClient.getBufferSize()) {
+      // strcpy((char*)message,"Pocket too big!"), messageLenght=16;
+      mqttClient.publish("test", "Pocket too big!",false);
+    } else
+    mqttClient.publish("test", message,messageLenght,false);
+  }
 
 void connectToWifi() {
   if (DEBUG) { 
@@ -64,21 +65,25 @@ void setup() {
   Serial.begin(BAUD_RATE);
   Serial.setRxBufferSize(SERIAL_BUFFER_SIZE);
   connectToWifi();
+  mqttClient.setBufferSize(2000);
   mqttClient.setServer(MQTT_SERVER_IP, MQTT_SERVER_PORT);
 }
+
+// policzyć moduły przyspieszeń
 
 void loop() {
   
   // neccesary variables declaration
   // char bigBuffer[SERIAL_BUFFER_SIZE];
-  uint bufferPosition = 0;
 
-  const uint16_t buffSize = mqttClient.getBufferSize() - 10;
-  char buffer[buffSize];
+  uint bufferPosition = 0;
+  const uint16_t buffSize = 1000; 
+  uint8_t buffer[buffSize];
 
   unsigned long lastTimeSend = 0;
   unsigned long diff;
   
+  int margin = 0;
   uint aviableBytes = 0;
 
   // Start transmission transmission of HEX-type data (0x21 is !)
@@ -90,29 +95,28 @@ void loop() {
     // Read data from serial
     aviableBytes = Serial.available();
     if (aviableBytes > 0) {
-      if(aviableBytes > buffSize) {
+      margin = bufferPosition+aviableBytes;
+      if(margin > buffSize) {
         // Prevent buffer from overlow and serial blocking
-        sendData("Buffer overflow", 16);
+        sendData((const uint8_t*)"Buffer overflow", 16);
         for (size_t i = 0; i < aviableBytes; i++) {
           Serial.read();
         }
       } else {
         // Store data in buffer
-        int margin = bufferPosition+aviableBytes;
         for (; bufferPosition < margin; bufferPosition++) {
           buffer[bufferPosition] = Serial.read();
-        }
+        }    
       }
     }
 
     // Send data end clear buffer
     diff = micros() - lastTimeSend;
-    if(diff >= dataTimeSendMicrosec) {
+    if (diff >= dataTimeSendMicrosec) {
       if (bufferPosition > 0) {
-        // int n = sprintf(message, "%u, %u", bufferPosition, diff);
-        // sendData(message, n);
 
         sendData(buffer, bufferPosition);
+
         lastTimeSend = micros();
         bufferPosition = 0;
       }
