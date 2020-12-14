@@ -1,5 +1,5 @@
 #include "../include/config.hpp"
-#include <base64.h>
+#include "base64.h"
 
 // MQTT Client
 WiFiClient espClient;
@@ -7,13 +7,11 @@ PubSubClient mqttClient(espClient);
 
 void sendData(const uint8_t* message, size_t messageLenght) {
     if (messageLenght > mqttClient.getBufferSize()) {
-      mqttClient.publish("test", "Pocket too big!",false);
+      mqttClient.publish("test", "Pocket too big!", false);
     } else {
-      mqttClient.publish("test", message,messageLenght,false);
+      mqttClient.publish("test", message, messageLenght, false);
     }
   }
-
-
 
 void connectToWifi() {
   if (DEBUG) { 
@@ -68,7 +66,7 @@ void setup() {
   Serial.begin(BAUD_RATE);
   Serial.setRxBufferSize(SERIAL_BUFFER_SIZE);
   connectToWifi();
-  mqttClient.setBufferSize(2000);
+  mqttClient.setBufferSize(1024);
   mqttClient.setServer(MQTT_SERVER_IP, MQTT_SERVER_PORT);
 }
 
@@ -76,21 +74,40 @@ void setup() {
 
 void loop() {
   
-  // neccesary variables declaration
-  uint bufferPosition = 0;
-  const uint16_t buffSize = 1000; 
-  uint8_t buffer[buffSize];
-
-  int8_t counter = 0;
+  const uint16_t buffSize = mqttClient.getBufferSize() - 24; 
 
   unsigned long lastTimeSend = 0;
   unsigned long diff;
-  char message[15];
-  int margin = 0;
-  uint aviableBytes = 0;
-  CircularBuffer<unsigned short> circularBuffer(72, 8);
 
-  // Start transmission transmission of HEX-type data (0x21 is !)
+  uint aviableBytes = 0;
+
+  int i = 0;
+
+  // ======
+  // buffer
+  // ======
+  
+  const uint packagesCount = 8, packageSize = 8, frameSize = 18;  
+  uint frame_index = 0;
+  uint expected_frame_index = 0;
+  uint package_index = 0;
+  int8_t NaN = std::numeric_limits<int8_t>::max();
+  
+  // buffer is 3d array which means we have got many packages 
+  // which every package consinsts of `packageSize` frames. 
+  // Every frame has length of `frameSize`. 
+  int8_t buffer[packagesCount][packageSize][frameSize]; 
+
+  // =============
+  // state machine
+  // =============
+  enum class States { start, nr, data, eof };
+  int8_t value = 0;
+  int8_t position = 0;
+  States state = States::start;
+  int8_t frame[frameSize];
+
+  // Start transmission transmission of HEX-type data (0x21 is '!')
   Serial.write(0x21);
 
   while (mqttClient.connected()) {
@@ -99,79 +116,138 @@ void loop() {
     // Read data from serial
     aviableBytes = Serial.available();
     if (aviableBytes > 0) {
-      margin = bufferPosition+aviableBytes;
-      if(margin > buffSize) {
-        // Prevent buffer from overlow and serial blocking
+  
+      // Prevent buffer from overlow and serial blocking
+      if (aviableBytes >= buffSize) {
         sendData((const uint8_t*)"Buffer overflow", 16);
-        for (size_t i = 0; i < aviableBytes; i++) {
+        for (i = 0; i < aviableBytes; i++) {
           Serial.read();
         }
       } else {
-        int8_t sample;
-        bool is_frame_started = false;
-        bool is_inside_frame = false;
-        bool first_byte = false;
-        bool second_byte = false;
-        uint8_t expected_row = 0;
-        int8_t first = 0;
 
+        for (i = 0; i < aviableBytes; i++) {
+          value = Serial.read();
+          mqttClient.publish("test", "processing!", false);
 
-        // Store data in buffer
-        for (; bufferPosition < margin; bufferPosition++) {
-          sample = Serial.read();
-          
-          // start of frame
-          if (sample == 0x40 && !is_frame_started) { 
-            is_frame_started = true;
-          
-          // frame number
-          } else if (is_frame_started && (sample >= 1) && (sample <= 8) && !is_inside_frame) { 
-            expected_row = sample;
-            is_inside_frame = true;
-            first_byte = true;
-          
-          // end of frame
-          } else if (sample != 0x23) { 
-            is_inside_frame = false;
-            is_frame_started = false;
-            continue;
+          switch (state) {
+            case States::start:
+              if (value == int('@'))
+                state = States::nr;
+              break;
 
-          // read first byte
-          } else if (first_byte) {
-            first = sample;
-            first_byte = false;
-            second_byte = true;
-          
-          // read second byte and insert into buffer
-          } else if (second_byte) {
-            short value = short(
-              (unsigned char)(first) << 8 |
-              (unsigned char)(sample)
-            );
+            case States::nr:
+              if (value >= int('1') && value <= int('8')){
+                state = States::data;
+                frame_index = value - int('0') - 1;
+              } else {
+                state = States::start;
+              }
+              break;
 
-            circularBuffer.insert(value, counter);
-            counter += expected_row;
-
-            if(counter >= 72) counter = 0;
+            case States::data:
+              frame[position] = value;
+              position++;
+              if(position == 18) {
+                position = 0;
+                state = States::eof;
+              }
+              break;
             
-            first_byte = true;
-            second_byte = false;
+            case States::eof:
+              if (value == int('#')) {
+                // if package is correct, process the frame
+
+                // Check the correctness of incoming frame index
+                if (false) { // (expected_frame_index != frame_index) {
+                  
+                  // if we have gap inside one package we dont switch to next package
+                  if (frame_index > expected_frame_index) {
+                    
+                    // fill gap with NaN (max of value of data type)
+                    for (int j = expected_frame_index; j <= frame_index; j++) {
+                      for (int k = 0; k < frameSize; k++) {
+                        buffer[package_index][j][k] = NaN;
+                      }
+                    }
+                    
+                  } else if (frame_index < expected_frame_index) {
+                    int pos, steps = packageSize - abs(int(expected_frame_index - frame_index));
+                    
+                    // fill gap with NaN (max of value of data type)
+                    for (int j = 0; j < steps; j++) {
+                      pos = (expected_frame_index + j) % packageSize;
+                      
+                      // if we we fill package go to next one
+                      if (pos == 0) {
+                        package_index++;
+                        
+                        // buffer overflow
+                        if (package_index > packagesCount-1) package_index = 0;
+                      }
+                      
+                      for (int k = 0; k < frameSize; k++) {
+                        buffer[package_index][pos][k] = NaN;
+                      }
+                    }
+
+                    // if incoming frame is 0, we dont want to overwrite package filled with NaN's.
+                    // we switch to new package
+                    if (frame_index == 0) {
+                      package_index++;
+                      if (package_index > packagesCount-1) package_index = 0;
+                    }
+                  }
+                  expected_frame_index = frame_index;
+                } 
+
+                // save data in buffer
+                for(int j=0; j<frameSize; j++) {
+                  buffer[package_index][frame_index][j] = frame[j]; 
+                }
+
+                // In next step we are expecting next frame (with previous index +1)
+                expected_frame_index++;
+
+                // if frame index is higher than package size, current package is full so pick next package
+                if (expected_frame_index > packageSize-1) {
+                  package_index++;
+
+                  // if package index is higher than packages count than buffer overflows 
+                  if (package_index > packagesCount-1){
+                    package_index = 0;
+                  }
+                }
+                
+                // frame index is never higher than package size because package consists of frames
+                expected_frame_index%=packageSize;
+
+              } 
+              // otherwise, ignore it and look for begining of next frame
+              state = States::start;
+              break;  
+          
+            default:
+              break;
           }
-        }    
+        }
       }
     }
 
     // Send data end clear buffer
     diff = micros() - lastTimeSend;
     if (diff >= dataTimeSendMicrosec) {
-      if (bufferPosition > 0) {
-        base64::encode()
-        int n = sprintf(message, "%u", circularBuffer.getCapacity());
-        mqttClient.publish("test", message);
+      // if (package_index > 0) {
+        
+        char message[20];
+        sprintf(message, "%u, %u", package_index, diff);
+        mqttClient.publish("test", message, false);
+
+        // sendData(buffer, bufferPosition);
+
+        // clear buffer
+        // frame_index = 0, expected_frame_index = 0, package_index = 0;
         lastTimeSend = micros();
-        bufferPosition = 0;
-        circularBuffer.clear();
-      }
+      // }
     }
   } 
   mqttReconnect();

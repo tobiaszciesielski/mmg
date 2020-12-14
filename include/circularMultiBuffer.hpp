@@ -26,7 +26,7 @@ private:
     tail = (tail+1) % cols;
   }
 
-  void fillWithZeros(size_t &row) {
+  void fillWithNull(size_t &row) {
     int steps = abs(row-expectedRow);
     int from, to;
     if (row > expectedRow) {
@@ -69,7 +69,7 @@ public:
   // insert value into passed position
   void insert(T value, size_t row) {   
     if(row != expectedRow) 
-      fillWithZeros(row);
+      fillWithNull(row);
 
     buffer[row][head] = value;
     expectedRow++;
@@ -81,10 +81,10 @@ public:
   }
 
   // get package (column)
-  std::vector<T> get() {
-    if (isEmpty()) return std::vector<T>(rows, T());
+  const T* get() {
+    if (isEmpty()) return new T;
     
-    std::vector<T> tmpVector(rows);
+    T* tmpVector = new T[rows];
     for (int i = 0; i < rows; i++) {
       tmpVector[i] = buffer[i][tail];
     }
