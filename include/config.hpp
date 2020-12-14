@@ -9,7 +9,7 @@
 #include "WiFi.h"
 
 // debugging messages
-#define DEBUG true
+#define DEBUG false
 
 // network   
 #define WIFI_NETWORK "HUAWEI-AE45B7"

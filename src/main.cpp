@@ -66,7 +66,7 @@ void setup() {
   Serial.begin(BAUD_RATE);
   Serial.setRxBufferSize(SERIAL_BUFFER_SIZE);
   connectToWifi();
-  mqttClient.setBufferSize(1024);
+  mqttClient.setBufferSize(2000);
   mqttClient.setServer(MQTT_SERVER_IP, MQTT_SERVER_PORT);
 }
 
@@ -74,23 +74,21 @@ void setup() {
 
 void loop() {
   
-  const uint16_t buffSize = mqttClient.getBufferSize() - 24; 
+  const uint16_t buffSize = 800; //mqttClient.getBufferSize() - 24; 
 
   unsigned long lastTimeSend = 0;
   unsigned long diff;
 
-  uint aviableBytes = 0;
-
-  int i = 0;
+  int aviableBytes = 0;
 
   // ======
   // buffer
   // ======
   
-  const uint packagesCount = 8, packageSize = 8, frameSize = 18;  
-  uint frame_index = 0;
-  uint expected_frame_index = 0;
-  uint package_index = 0;
+  const uint packagesCount = 6, packageSize = 8, frameSize = 18;  
+  int frame_index = 0;
+  int expected_frame_index = 0;
+  int package_index = 0;
   int8_t NaN = std::numeric_limits<int8_t>::max();
   
   // buffer is 3d array which means we have got many packages 
@@ -103,7 +101,7 @@ void loop() {
   // =============
   enum class States { start, nr, data, eof };
   int8_t value = 0;
-  int8_t position = 0;
+  int position = 0;
   States state = States::start;
   int8_t frame[frameSize];
 
@@ -119,42 +117,45 @@ void loop() {
   
       // Prevent buffer from overlow and serial blocking
       if (aviableBytes >= buffSize) {
-        sendData((const uint8_t*)"Buffer overflow", 16);
-        for (i = 0; i < aviableBytes; i++) {
+        for (int i = 0; i < aviableBytes; i++) {
           Serial.read();
         }
+        sendData((const uint8_t*)"Buffer overflow", 16);
       } else {
-
-        for (i = 0; i < aviableBytes; i++) {
+        
+        for (int i = 0; i < aviableBytes; i++) {
+          
           value = Serial.read();
-          mqttClient.publish("test", "processing!", false);
 
           switch (state) {
             case States::start:
-              if (value == int('@'))
+              if (value == 0x40)
+
                 state = States::nr;
               break;
 
             case States::nr:
-              if (value >= int('1') && value <= int('8')){
+              if (value >= 0x01 && value <= 0x08){
                 state = States::data;
-                frame_index = value - int('0') - 1;
+                frame_index = value - 1;
               } else {
                 state = States::start;
               }
               break;
 
             case States::data:
+            
               frame[position] = value;
               position++;
-              if(position == 18) {
+              if(position == frameSize) {
                 position = 0;
                 state = States::eof;
               }
               break;
             
             case States::eof:
-              if (value == int('#')) {
+              if (value == 0x23) {
+                
                 // if package is correct, process the frame
 
                 // Check the correctness of incoming frame index
@@ -224,6 +225,7 @@ void loop() {
               } 
               // otherwise, ignore it and look for begining of next frame
               state = States::start;
+
               break;  
           
             default:
@@ -236,7 +238,7 @@ void loop() {
     // Send data end clear buffer
     diff = micros() - lastTimeSend;
     if (diff >= dataTimeSendMicrosec) {
-      // if (package_index > 0) {
+      if (package_index > 0) {
         
         char message[20];
         sprintf(message, "%u, %u", package_index, diff);
@@ -245,9 +247,9 @@ void loop() {
         // sendData(buffer, bufferPosition);
 
         // clear buffer
-        // frame_index = 0, expected_frame_index = 0, package_index = 0;
+        frame_index = 0, expected_frame_index = 0, package_index = 0;
         lastTimeSend = micros();
-      // }
+      }
     }
   } 
   mqttReconnect();
