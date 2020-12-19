@@ -1,17 +1,22 @@
 #include "../include/config.hpp"
-#include "base64.h"
+
+
 
 // MQTT Client
 WiFiClient espClient;
 PubSubClient mqttClient(espClient);
 
 void sendData(const uint8_t* message, size_t messageLenght) {
-    if (messageLenght > mqttClient.getBufferSize()) {
-      mqttClient.publish("test", "Pocket too big!", false);
-    } else {
-      mqttClient.publish("test", message, messageLenght, false);
-    }
+  if (messageLenght > mqttClient.getBufferSize()) {
+    mqttClient.publish("test", "Pocket too big!", false);
+  } else {
+    mqttClient.publish("test", message, messageLenght, false);
   }
+}
+
+void sendJson(const char* json) {
+  mqttClient.publish("test", json);
+}
 
 void connectToWifi() {
   if (DEBUG) { 
@@ -66,44 +71,60 @@ void setup() {
   Serial.begin(BAUD_RATE);
   Serial.setRxBufferSize(SERIAL_BUFFER_SIZE);
   connectToWifi();
-  mqttClient.setBufferSize(2000);
+  mqttClient.setBufferSize(2200);
   mqttClient.setServer(MQTT_SERVER_IP, MQTT_SERVER_PORT);
 }
 
 // policzyć moduły przyspieszeń
 
 void loop() {
-  
-  const uint16_t buffSize = 800; //mqttClient.getBufferSize() - 24; 
+
+  // =====================
+  //  necessary variables
+  // =====================
+  const uint16_t buffSize = 900;
 
   unsigned long lastTimeSend = 0;
   unsigned long diff;
 
   int aviableBytes = 0;
 
-  // ======
-  // buffer
-  // ======
-  
-  const uint packagesCount = 6, packageSize = 8, frameSize = 18;  
-  int frame_index = 0;
-  int expected_frame_index = 0;
-  int package_index = 0;
-  int8_t NaN = std::numeric_limits<int8_t>::max();
+  char json[2000];
+
+  int aviablePackages = 0;
+
+  unsigned long timeField = 0;
+  char tmp[11];
+
+  String encodedFrame;
+  encodedFrame.reserve(24);
+
+  char freq[6];
+  freq[0]='\0';
+  my::itoa(SENDING_DATA_FREQ, freq, 10);
+
+  // ========
+  //  buffer
+  // ========
+  const size_t packagesCount = 8, packageSize = 8, frameSize = 18;  
+  uint8_t** package = new uint8_t*[packageSize];
+  for(int8_t i = 0; i < packageSize; ++i)
+    package[i] = new uint8_t[frameSize];
   
   // buffer is 3d array which means we have got many packages 
   // which every package consinsts of `packageSize` frames. 
   // Every frame has length of `frameSize`. 
-  int8_t buffer[packagesCount][packageSize][frameSize]; 
+  Buffer<uint8_t> buffer(packagesCount, packageSize, frameSize);
 
-  // =============
-  // state machine
-  // =============
+  // ===============
+  //  state machine
+  // ===============
   enum class States { start, nr, data, eof };
-  int8_t value = 0;
-  int position = 0;
   States state = States::start;
-  int8_t frame[frameSize];
+  uint8_t value = 0;
+  int position = 0;
+  size_t frameIndex = 0;
+  std::vector<uint8_t> frame(frameSize, 0);
 
   // Start transmission transmission of HEX-type data (0x21 is '!')
   Serial.write(0x21);
@@ -122,29 +143,25 @@ void loop() {
         }
         sendData((const uint8_t*)"Buffer overflow", 16);
       } else {
-        
         for (int i = 0; i < aviableBytes; i++) {
-          
           value = Serial.read();
 
           switch (state) {
             case States::start:
               if (value == 0x40)
-
                 state = States::nr;
               break;
 
             case States::nr:
               if (value >= 0x01 && value <= 0x08){
                 state = States::data;
-                frame_index = value - 1;
+                frameIndex = value - 1;
               } else {
                 state = States::start;
               }
               break;
 
             case States::data:
-            
               frame[position] = value;
               position++;
               if(position == frameSize) {
@@ -155,77 +172,10 @@ void loop() {
             
             case States::eof:
               if (value == 0x23) {
-                
-                // if package is correct, process the frame
-
-                // Check the correctness of incoming frame index
-                if (false) { // (expected_frame_index != frame_index) {
-                  
-                  // if we have gap inside one package we dont switch to next package
-                  if (frame_index > expected_frame_index) {
-                    
-                    // fill gap with NaN (max of value of data type)
-                    for (int j = expected_frame_index; j <= frame_index; j++) {
-                      for (int k = 0; k < frameSize; k++) {
-                        buffer[package_index][j][k] = NaN;
-                      }
-                    }
-                    
-                  } else if (frame_index < expected_frame_index) {
-                    int pos, steps = packageSize - abs(int(expected_frame_index - frame_index));
-                    
-                    // fill gap with NaN (max of value of data type)
-                    for (int j = 0; j < steps; j++) {
-                      pos = (expected_frame_index + j) % packageSize;
-                      
-                      // if we we fill package go to next one
-                      if (pos == 0) {
-                        package_index++;
-                        
-                        // buffer overflow
-                        if (package_index > packagesCount-1) package_index = 0;
-                      }
-                      
-                      for (int k = 0; k < frameSize; k++) {
-                        buffer[package_index][pos][k] = NaN;
-                      }
-                    }
-
-                    // if incoming frame is 0, we dont want to overwrite package filled with NaN's.
-                    // we switch to new package
-                    if (frame_index == 0) {
-                      package_index++;
-                      if (package_index > packagesCount-1) package_index = 0;
-                    }
-                  }
-                  expected_frame_index = frame_index;
-                } 
-
-                // save data in buffer
-                for(int j=0; j<frameSize; j++) {
-                  buffer[package_index][frame_index][j] = frame[j]; 
-                }
-
-                // In next step we are expecting next frame (with previous index +1)
-                expected_frame_index++;
-
-                // if frame index is higher than package size, current package is full so pick next package
-                if (expected_frame_index > packageSize-1) {
-                  package_index++;
-
-                  // if package index is higher than packages count than buffer overflows 
-                  if (package_index > packagesCount-1){
-                    package_index = 0;
-                  }
-                }
-                
-                // frame index is never higher than package size because package consists of frames
-                expected_frame_index%=packageSize;
-
+                buffer.insert(frame, frameIndex);
               } 
               // otherwise, ignore it and look for begining of next frame
               state = States::start;
-
               break;  
           
             default:
@@ -235,19 +185,62 @@ void loop() {
       }
     }
 
-    // Send data end clear buffer
+    // Send data
     diff = micros() - lastTimeSend;
     if (diff >= dataTimeSendMicrosec) {
-      if (package_index > 0) {
+      aviablePackages = buffer.getCapacity();
+      if (aviablePackages > 0) {
+       
+        json[0] = '\0';
+        char *p = json;
+
+        // begin json
+        p = my::strcat(p, "{\"data\":[");
+        for (size_t i = 0; i < aviablePackages; i++) {
+          buffer.get(package);
+          p = my::strcat(p, "[");
+          for (int j = 0; j < 8; j++) {
+            encodedFrame = base64::encode(package[j], 18);
+            p = my::strcat(p, "\"");
+            p = my::strcat(p, (char*)encodedFrame.c_str());
+            p = my::strcat(p, "\"");
+            if (j < 7) p = my::strcat(p, ",");
+          }
+          p = my::strcat(p, "]");
+          if (i < aviablePackages-1) p = my::strcat(p, ",");
+        }
+        p = my::strcat(p, "]");
         
-        char message[20];
-        sprintf(message, "%u, %u", package_index, diff);
-        mqttClient.publish("test", message, false);
+        // "packets" field
+        p = my::strcat(p, ",\"packets\":");
+        tmp[0] = '\0';
+        my::itoa(aviablePackages, tmp, 10);
+        p = my::strcat(p, tmp);
 
-        // sendData(buffer, bufferPosition);
+        // "timestamp" field
+        p = my::strcat(p, ",\"timestamp\":");
+        tmp[0] = '\0';
+        timeField = micros();
+        my::itoa(timeField, tmp, 10);
+        p = my::strcat(p, tmp);
 
-        // clear buffer
-        frame_index = 0, expected_frame_index = 0, package_index = 0;
+        // // "diffrence" field
+        // p = my::strcat(p, ",\"diffrence\":");
+        // tmp[0] = '\0';
+        // timeField = diff;
+        // my::itoa(timeField, tmp, 10);
+        // p = my::strcat(p, tmp);
+
+        // "freq" field
+        p = my::strcat(p, ",\"freq\":");
+        p = my::strcat(p, freq);
+
+        // finish json
+        p = my::strcat(p, "}");
+        *p = '\0';
+
+        sendJson(json);
+
         lastTimeSend = micros();
       }
     }

@@ -1,103 +1,116 @@
-#include <iostream>
 #include <vector>
-#include <chrono>
+#include <limits>
+using std::vector;
 
 template <typename T>
-class CircularBuffer {
+class Buffer {
 private:
-  std::vector<std::vector<T>> buffer;
   size_t head;
   size_t tail;
-  size_t rows;
-  size_t cols;
-  size_t expectedRow;
+  size_t expectedFrameIndex;
   bool isFull;
-  T type_maximum = std::numeric_limits<T>::max();
+  size_t packagesCount;
+  size_t packageSize;
+  size_t frameSize;  
+  T NaN = std::numeric_limits<T>::max();
+  std::vector<std::vector<std::vector<T>>> buffer;
+  std::vector<T> invalidVector;
 
 private:
   void pushHead() {
-    head = (head+1) % cols;
+    head = (head+1) % packagesCount;
 
-    if(isFull) tail = (tail+1) % cols;
+    // if package index is higher than packages count than buffer overflows 
+    if(isFull) tail = (tail+1) % packagesCount;
     isFull = (head == tail);
   }
 
   void pushTail() {
-    tail = (tail+1) % cols;
+    tail = (tail+1) % packagesCount;
   }
 
-  void fillWithNull(size_t &row) {
-    int steps = abs(row-expectedRow);
-    int from, to;
-    if (row > expectedRow) {
-      // fill the hole with 0
-      from = expectedRow;
-      to = row;
-      
-      for(int i = from; i < to; i++) {
-        buffer[i][head] = type_maximum;
-      }
-    } else if (row < expectedRow) {
-      // fill the rest with 0 and move head
-      from = expectedRow;
-      to = rows;
+  void fillWithNull(size_t &frame_index) {
+    if (frame_index > expectedFrameIndex) { 
 
-      // -1 because we iterate from 0
-      steps = rows-steps-1; 
-      int pos;
-      for(int i = 0; i < steps; i++) { 
-        pos = (from + i) % rows;
-        if(pos == 0) pushHead();
-        buffer[pos][head] = type_maximum;
+      // fill gap with NaN (max of value of data type)
+      for (size_t i = expectedFrameIndex; i < frame_index; i++) {
+        buffer[head][i] = invalidVector;
+      }
+    } else { 
+      int pos = 0; 
+      int steps = packageSize - abs(int(expectedFrameIndex - frame_index));
+      
+      // fill gap with NaN (max of value of data type)
+      for (int j = 0; j < steps; j++) {
+        pos = (expectedFrameIndex + j) % packageSize;
+        
+        // if we we fill package go to next one
+        if (pos == 0) {
+          pushHead();
+        }
+
+        buffer[head][pos] = invalidVector;
+      }
+
+      // if incoming frame is 0, we dont want to overwrite package filled with NaN's.
+      // we switch to new package
+      if (frame_index == 0) {
+        pushHead();
       }
     }
-    expectedRow = row;
-}
+    expectedFrameIndex = frame_index;
+  }
 
 public:
-  CircularBuffer(size_t bufferRows, size_t bufferCols): 
-    buffer(std::vector<std::vector<T>>(bufferRows)),
-    head(0), 
-    tail(0), 
-    rows(bufferRows),
-    cols(bufferCols),
-    expectedRow(0),
-    isFull(false) {
-      for (size_t i = 0; i < bufferRows; i++) buffer[i] = std::vector<T>(bufferCols);      
+  Buffer(size_t packages_count, size_t package_size, size_t frame_size):   
+    head(0),
+    tail(0),
+    expectedFrameIndex(0),
+    isFull(false),
+    packagesCount(packages_count),
+    packageSize(package_size),
+    frameSize(frame_size) {
+      buffer = vector<vector<vector<T>>>(packages_count, vector<vector<T>>(package_size, vector<T>(frame_size)));
+      invalidVector = vector<T>(frameSize, NaN);
     }
 
   // insert value into passed position
-  void insert(T value, size_t row) {   
-    if(row != expectedRow) 
-      fillWithNull(row);
-
-    buffer[row][head] = value;
-    expectedRow++;
-
-    if(expectedRow == rows) {
-      pushHead();
-      expectedRow = 0;
+  void insert(vector<T>& value, size_t frame_index) {   
+    if (expectedFrameIndex != frame_index) {
+      fillWithNull(frame_index);
     }
+    
+    buffer[head][frame_index] = value;
+    expectedFrameIndex++;
+
+    // if frame index is higher than package size, 
+    // current package is full so pick next package
+    if (expectedFrameIndex > packageSize-1) {
+      pushHead();
+    }
+    
+    // frame index is never higher than package size because package consists of frames
+    expectedFrameIndex%=packageSize;
   }
 
   // get package (column)
-  const T* get() {
-    if (isEmpty()) return new T;
-    
-    T* tmpVector = new T[rows];
-    for (int i = 0; i < rows; i++) {
-      tmpVector[i] = buffer[i][tail];
-    }
+  void get(T** table) {
+    if (isEmpty()) return;
 
+    for (size_t i = 0; i < packageSize; i++) {
+      for (size_t j = 0; j < frameSize; j++) {
+        table[i][j] = buffer[tail][i][j];
+      }
+    }
+    
     pushTail();
     isFull = false;
-    return tmpVector;
   }
 
 
   // delete all values from buffer
   void clear() {
-    expectedRow = 0;
+    expectedFrameIndex = 0;
     head = tail;
     isFull = false;
   }
@@ -105,6 +118,7 @@ public:
   // check if buffer is empty
   bool isEmpty() {
     return (!isFull && (head == tail));
+    return false;
   }
 
   // check if buffer is filled
@@ -112,24 +126,26 @@ public:
     return isFull;
   }
 
-  // get package length
-  size_t getColumsCount() {
-    return cols;
+  const size_t getPackagesCount() {
+    return packagesCount;
   }
 
-  // get buffer length
-  size_t getRowsCount() {
-    return rows;
+  const size_t getFrameSize() {
+    return frameSize;
+  }
+
+  const size_t getPackageSize() {
+    return packageSize;
   }
 
   // get count of filled rows
-  size_t getCapacity() {
-    size_t capacity = cols;
+  const size_t getCapacity() {
+    size_t capacity = packagesCount;
     if(!isFull) {
       if(head >= tail)
         capacity = head - tail;
       else
-        capacity = cols + head - tail;
+        capacity = packagesCount + head - tail;
     }
     return capacity;
   }

@@ -1,8 +1,9 @@
-// build-in libraries 
 #include <Arduino.h>
 #include <string.h>
 #include <stdlib.h>
-#include <limits>
+#include <base64.h>
+#include "circularMultiBuffer.hpp"
+#include "myFunctions.hpp"
 
 // additional libraries
 #include "PubSubClient.h"
@@ -12,12 +13,12 @@
 #define DEBUG false
 
 // network   
-#define WIFI_NETWORK "HUAWEI-AE45B7"
-#define WIFI_PASSWORD "J90D90L0MH3"
+#define WIFI_NETWORK "Ciesielski Hot Spot"
+#define WIFI_PASSWORD "Aneta1999"
 #define WIFI_TIMEOUT_MS 15000
 
 // mqtt 
-#define MQTT_SERVER_IP "192.168.8.105"
+#define MQTT_SERVER_IP "192.168.8.120"
 #define MQTT_SERVER_PORT 1883
 
 // transmission 
