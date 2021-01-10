@@ -32,9 +32,9 @@ unsigned long dataTimeSendMicrosec = (1.0 / SENDING_DATA_FREQ) * 1000000;
 #define SERIAL_BUFFER_SIZE 12000
 
 namespace topic {
-    const char data[] = "sensors/mmg/data";
-    const char control[] = "sensors/mmg/control";
-    const char log[] = "sensors/mmg/log";
+    const char data[] = "sensors/data/mmg";
+    const char control[] = "sensors/control/mmg";
+    const char log[] = "sensors/log/mmg";
 }
 
 const char startStreamingCommand[] = "start";

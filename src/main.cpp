@@ -23,11 +23,11 @@ void callback(char* topic, byte* payload, unsigned int length) {
   if (!strcmp(topic, topic::control)) {
     if (!strcmp(message, startStreamingCommand)) {
       isDataStreaming = true;
-      sendLog("starting");
+      sendLog("Data stream started.");
     }
     if (!strcmp(message, stopStreamingCommand)) {
       isDataStreaming = false;
-      sendLog("pausing");
+      sendLog("Data stream stopped.");
     }
   }
 }
