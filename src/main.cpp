@@ -1,21 +1,35 @@
 #include "../include/config.hpp"
 
-
-
 // MQTT Client
 WiFiClient espClient;
 PubSubClient mqttClient(espClient);
 
-void sendData(const uint8_t* message, size_t messageLenght) {
-  if (messageLenght > mqttClient.getBufferSize()) {
-    mqttClient.publish("test", "Pocket too big!", false);
-  } else {
-    mqttClient.publish("test", message, messageLenght, false);
-  }
+void sendLog(const char* message) {
+    mqttClient.publish(topic::log, message);
 }
 
 void sendJson(const char* json) {
-  mqttClient.publish("test", json);
+  mqttClient.publish(topic::data, json);
+}
+
+void callback(char* topic, byte* payload, unsigned int length) {
+  const uint8_t max_mess_length = 10;
+  char message[max_mess_length] = {'\0'};
+  for(int i = 0; i < length; i++) {
+    if (i < max_mess_length) {
+      message[i] = (char)payload[i];
+    }
+  }
+  if (!strcmp(topic, topic::control)) {
+    if (!strcmp(message, startStreamingCommand)) {
+      isDataStreaming = true;
+      sendLog("starting");
+    }
+    if (!strcmp(message, stopStreamingCommand)) {
+      isDataStreaming = false;
+      sendLog("pausing");
+    }
+  }
 }
 
 void connectToWifi() {
@@ -57,6 +71,11 @@ void mqttReconnect() {
     if (DEBUG) {
       if (isConnected) {
         Serial.println("connected!\n"); 
+          if (mqttClient.subscribe(topic::control)){
+            sendLog("Succesfull subscription control topic!");
+          } else {
+            sendLog("Subscription control topic failed!");
+          }
       } else {
         Serial.print("failed, rc=");
         Serial.print(mqttClient.state());
@@ -73,6 +92,7 @@ void setup() {
   connectToWifi();
   mqttClient.setBufferSize(2200);
   mqttClient.setServer(MQTT_SERVER_IP, MQTT_SERVER_PORT);
+  mqttClient.setCallback(callback);
 }
 
 // policzyć moduły przyspieszeń
@@ -82,10 +102,10 @@ void loop() {
   // =====================
   //  necessary variables
   // =====================
-  const uint16_t buffSize = 900;
+  const uint16_t buffSize = 1000;
 
   unsigned long lastTimeSend = 0;
-  unsigned long diff;
+  unsigned long currentTime = 0;
 
   int aviableBytes = 0;
 
@@ -110,6 +130,10 @@ void loop() {
   uint8_t** package = new uint8_t*[packageSize];
   for(int8_t i = 0; i < packageSize; ++i)
     package[i] = new uint8_t[frameSize];
+
+  char channels[3];
+  channels[0]='\0';
+  my::itoa(packageSize, channels, 10);
   
   // buffer is 3d array which means we have got many packages 
   // which every package consinsts of `packageSize` frames. 
@@ -141,7 +165,7 @@ void loop() {
         for (int i = 0; i < aviableBytes; i++) {
           Serial.read();
         }
-        sendData((const uint8_t*)"Buffer overflow", 16);
+        sendLog("Buffer overflow");
       } else {
         for (int i = 0; i < aviableBytes; i++) {
           value = Serial.read();
@@ -186,8 +210,8 @@ void loop() {
     }
 
     // Send data
-    diff = micros() - lastTimeSend;
-    if (diff >= dataTimeSendMicrosec) {
+    currentTime = micros();
+    if (currentTime - lastTimeSend >= dataTimeSendMicrosec) {
       aviablePackages = buffer.getCapacity();
       if (aviablePackages > 0) {
        
@@ -220,29 +244,27 @@ void loop() {
         // "timestamp" field
         p = my::strcat(p, ",\"timestamp\":");
         tmp[0] = '\0';
-        timeField = micros();
+        timeField = currentTime;
         my::itoa(timeField, tmp, 10);
         p = my::strcat(p, tmp);
-
-        // // "diffrence" field
-        // p = my::strcat(p, ",\"diffrence\":");
-        // tmp[0] = '\0';
-        // timeField = diff;
-        // my::itoa(timeField, tmp, 10);
-        // p = my::strcat(p, tmp);
 
         // "freq" field
         p = my::strcat(p, ",\"freq\":");
         p = my::strcat(p, freq);
 
+        // "channels" field
+        p = my::strcat(p, ",\"channels\":");
+        p = my::strcat(p, channels);
+
         // finish json
         p = my::strcat(p, "}");
         *p = '\0';
 
-        sendJson(json);
-
-        lastTimeSend = micros();
+        if (isDataStreaming) {
+          sendJson(json);
+        }
       }
+      lastTimeSend = currentTime;
     }
   } 
   mqttReconnect();
