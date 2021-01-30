@@ -1,2 +1,3 @@
-.vscode
-
+lib 
+test 
+platformio.ini
