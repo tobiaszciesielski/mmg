@@ -68,22 +68,22 @@ void mqttReconnect() {
     WiFi.mode(WIFI_STA);
     bool isConnected = mqttClient.connect("esp32client");
     
-    if (DEBUG) {
+
       if (isConnected) {
-        Serial.println("connected!\n"); 
-          if (mqttClient.subscribe(topic::control)){
-            sendLog("Succesfull subscription control topic!");
+        if (DEBUG) Serial.println("connected!\n"); 
+          if (mqttClient.subscribe(topic::control)) {
+            if (DEBUG) sendLog("Succesfull subscription control topic!");
           } else {
-            sendLog("Subscription control topic failed!");
+            if (DEBUG) sendLog("Subscription control topic failed!");
           }
-      } else {
+      } else if(DEBUG) {
         Serial.print("failed, rc=");
         Serial.print(mqttClient.state());
         Serial.println(" try again in 5 seconds");
         delay(5000);
       }
     }
-  }
+
 }
 
 void setup() {
