@@ -13,14 +13,12 @@
 #define DEBUG true
 
 // network   
-// #define WIFI_NETWORK "Ciesielski Hot Spot"
-// #define WIFI_PASSWORD "Aneta1999"
-#define WIFI_NETWORK "Ciesielski_Hot_Spot"
+#define WIFI_NETWORK "Ciesielski Hot Spot"
 #define WIFI_PASSWORD "Aneta1999"
 #define WIFI_TIMEOUT_MS 15000
 
 // mqtt 
-#define MQTT_SERVER_IP "192.168.1.26"
+#define MQTT_SERVER_IP "192.168.1.106"
 #define MQTT_SERVER_PORT 1883
 
 // transmission 
