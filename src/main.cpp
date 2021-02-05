@@ -5,7 +5,7 @@ WiFiClient espClient;
 PubSubClient mqttClient(espClient);
 
 void sendLog(const char* message) {
-    mqttClient.publish(topic::log, message);
+  mqttClient.publish(topic::log, message);
 }
 
 void sendJson(const char* json) {
@@ -13,7 +13,7 @@ void sendJson(const char* json) {
 }
 
 void callback(char* topic, byte* payload, unsigned int length) {
-  const uint8_t max_mess_length = 10;
+  const uint8_t max_mess_length = 25;
   char message[max_mess_length] = {'\0'};
   for(int i = 0; i < length; i++) {
     if (i < max_mess_length) {
@@ -23,14 +23,16 @@ void callback(char* topic, byte* payload, unsigned int length) {
   if (!strcmp(topic, topic::control)) {
     if (!strcmp(message, startStreamingCommand)) {
       isDataStreaming = true;
-      sendLog("Data stream started.");
+      sendLog("{\"type\":\"info\",\"payload\":\"Data stream started.\"}");
     }
     if (!strcmp(message, stopStreamingCommand)) {
       isDataStreaming = false;
-      sendLog("Data stream stopped.");
+      sendLog("{\"type\":\"info\",\"payload\":\"Data stream stopped.\"}");
     }
   }
 }
+
+
 
 void connectToWifi() {
   if (DEBUG) { 
@@ -50,7 +52,11 @@ void connectToWifi() {
       delay(1000);
     }
   }
-  
+
+  if (DEBUG) {
+    Serial.print("\n");
+  }
+
   if (DEBUG) {
     if (WiFi.status() != WL_CONNECTED) {
       Serial.print("Connection Failed !");
@@ -63,18 +69,18 @@ void connectToWifi() {
   
 void mqttReconnect() {
   while (!mqttClient.connected()) {
-    if (DEBUG) Serial.print("Attempting MQTT connection...");
+    if (DEBUG) Serial.print("Attempting MQTT connection...\n");
 
     WiFi.mode(WIFI_STA);
     bool isConnected = mqttClient.connect("esp32client");
     
 
       if (isConnected) {
-        if (DEBUG) Serial.println("connected!\n"); 
+        if (DEBUG) Serial.println("Connected with MQTT Broker!"); 
           if (mqttClient.subscribe(topic::control)) {
-            if (DEBUG) sendLog("Succesfull subscription control topic!");
+            if (DEBUG) sendLog("{\"type\":\"info\",\"payload\":\"Succesfull subscription control topic!\"}");
           } else {
-            if (DEBUG) sendLog("Subscription control topic failed!");
+            if (DEBUG) sendLog("{\"type\":\"warning\",\"payload\":\"Subscription control topic failed!\"}");
           }
       } else if(DEBUG) {
         Serial.print("failed, rc=");
@@ -94,8 +100,6 @@ void setup() {
   mqttClient.setServer(MQTT_SERVER_IP, MQTT_SERVER_PORT);
   mqttClient.setCallback(callback);
 }
-
-// policzyć moduły przyspieszeń
 
 void loop() {
 
@@ -165,7 +169,7 @@ void loop() {
         for (int i = 0; i < aviableBytes; i++) {
           Serial.read();
         }
-        sendLog("Buffer overflow");
+        if (DEBUG) sendLog("{\"type\":\"warning\",\"payload\":\"Buffer overflow!\"}");
       } else {
         for (int i = 0; i < aviableBytes; i++) {
           value = Serial.read();
